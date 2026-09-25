@@ -1,6 +1,6 @@
 #!/bin/bash -e
-# Migrations (not db:prepare/schema load) so the append-only trigger is created
-# by the same code in every environment without needing psql in the image.
+# On an empty database Rails 8.1 loads db/structure.sql (with psql, hence
+# postgresql-client in the image); afterwards it runs pending migrations.
 if [ "${@: -2:1}" == "./bin/rails" ] && [ "${@: -1:1}" == "server" ]; then
   ./bin/rails db:migrate
 fi

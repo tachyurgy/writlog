@@ -35,7 +35,7 @@ Because the same `fold` is used for replay, the stored projection is checkable a
 
 Audit events (`document_generated`, `communication_logged`) are recorded on the log but never move the state or the matter's "as of" date. That matters for idempotency: recording that a document was generated must not change the inputs of that same document.
 
-The log is append-only in the database, not just in Ruby. A plpgsql trigger raises on `UPDATE` or `DELETE` of `matter_events`, so `update_all` and raw SQL are rejected too. Because of that trigger the schema is kept as `db/structure.sql`, and the container runs `db:migrate` on boot (not a schema load) so the trigger comes from the same migration everywhere.
+The log is append-only in the database, not just in Ruby. A plpgsql trigger raises on `UPDATE` or `DELETE` of `matter_events`, so `update_all` and raw SQL are rejected too. Because of that trigger the schema is kept as `db/structure.sql` rather than `schema.rb` (which cannot represent triggers), and the image carries `psql` so a fresh database is created from it with the trigger in place.
 
 ## Deadlines
 
