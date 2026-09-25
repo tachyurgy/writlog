@@ -4,7 +4,7 @@
 # index_generated_documents_idempotency; the matter row lock only keeps the
 # per-template version counter gap-free.
 class DocumentRequest
-  Result = Data.define(:document, :created)
+  Result = Data.define(:document, :created, :requeued)
   class Unresolved < StandardError; end
 
   def self.call(matter, template) = new(matter, template).call
@@ -22,7 +22,7 @@ class DocumentRequest
     result = find_or_create(digest, resolved["values"])
     # Enqueue only after the row is committed. A duplicate enqueue would still be
     # harmless (the job is idempotent) but it would be wasted work.
-    GenerateDocumentJob.perform_later(result.document.id) if result.created
+    GenerateDocumentJob.perform_later(result.document.id) if result.created || result.requeued
     result
   end
 
@@ -30,25 +30,29 @@ class DocumentRequest
 
   def find_or_create(digest, values)
     existing = lookup(digest)
-    return Result.new(existing, false) if existing
+    return Result.new(existing, false, false) if existing && existing.status != "failed"
 
     GeneratedDocument.transaction(requires_new: true) do
       @matter.lock!
       if (existing = lookup(digest))
-        Result.new(existing, false)
+        # A failed render is retried by asking again: same row, back to pending.
+        # The status check runs under the matter lock, so only one caller requeues.
+        requeue = existing.status == "failed"
+        existing.update!(status: "pending", error: nil) if requeue
+        Result.new(existing, false, requeue)
       else
         version = GeneratedDocument.where(matter_id: @matter.id, template_key: @template.key).maximum(:version).to_i + 1
         doc = GeneratedDocument.create!(
           matter: @matter, document_template: @template, template_key: @template.key,
           template_version: @template.version, version:, inputs_digest: digest, inputs: values
         )
-        Result.new(doc, true)
+        Result.new(doc, true, false)
       end
     end
   rescue ActiveRecord::RecordNotUnique
     # Another writer won the race outside our lock (e.g. a second app process
     # that skipped the lock). The index decided; return the winner.
-    Result.new(lookup(digest) || raise, false)
+    Result.new(lookup(digest) || raise, false, false)
   end
 
   def lookup(digest)

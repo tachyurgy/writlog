@@ -47,6 +47,19 @@ class DocumentGenerationTest < ActiveSupport::TestCase
     assert m.consistent_with_log?
   end
 
+  test "a failed document is requeued, not duplicated, when asked for again" do
+    m = build_matter
+    t = build_template
+    doc = DocumentRequest.call(m, t).document
+    doc.update!(status: "failed", error: "disk full")
+    again = DocumentRequest.call(m.reload, t)
+    assert again.requeued
+    assert_equal doc.id, again.document.id
+    assert_equal "pending", doc.reload.status
+    assert_enqueued_jobs 2, only: GenerateDocumentJob
+    assert_equal 1, GeneratedDocument.count
+  end
+
   test "merge values are HTML-escaped in the preview" do
     html = DocumentRenderer.html("T\n\n{{debtor_name}}", { "debtor_name" => "<script>x</script>" })
     refute_includes html, "<script>"

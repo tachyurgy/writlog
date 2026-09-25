@@ -46,6 +46,8 @@ RUN bundle install && \
 
 # Copy application code
 COPY . .
+# The Active Storage volume mounts here; it must exist (owned by rails) in the image.
+RUN mkdir -p storage tmp/pids log
 
 # Precompile bootsnap code for faster boot times.
 # -j 1 disable parallel compilation to avoid a QEMU bug: https://github.com/rails/bootsnap/issues/495

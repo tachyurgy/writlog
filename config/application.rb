@@ -38,6 +38,7 @@ module Writlog
     config.active_job.queue_adapter = :solid_queue
     # structure.sql, because the append-only trigger is part of the schema.
     config.active_record.schema_format = :sql
+    config.active_storage.variant_processor = :disabled # PDFs only, no image variants
     # config.eager_load_paths << Rails.root.join("extras")
 
     # Don't generate system test files.
