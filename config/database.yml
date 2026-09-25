@@ -1,0 +1,17 @@
+default: &default
+  adapter: postgresql
+  encoding: unicode
+  # Puma threads + the in-process Solid Queue worker/dispatcher threads.
+  max_connections: <%= ENV.fetch("DB_POOL") { 12 } %>
+
+development:
+  <<: *default
+  database: writlog_development
+
+test:
+  <<: *default
+  database: writlog_test
+
+production:
+  <<: *default
+  url: <%= ENV["DATABASE_URL"] %>

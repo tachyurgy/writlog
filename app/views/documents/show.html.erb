@@ -1,0 +1,6 @@
+<% content_for :title, "#{@document.template_key} v#{@document.version}" %>
+<p><%= link_to "← #{@document.matter.reference}", matter_path(@document.matter) %></p>
+<h1><%= @document.document_template.name %> <small class="mono">v<%= @document.version %></small></h1>
+<p class="hint mono">template <%= @document.template_key %> v<%= @document.template_version %> · inputs sha256 <%= @document.inputs_digest.first(16) %>… · status <%= @document.status %> · attempts <%= @document.attempts %>
+<% if @document.pdf.attached? %> · <%= link_to "PDF", rails_blob_path(@document.pdf, disposition: "inline") %><% end %></p>
+<article class="paper"><%= (@document.rendered_html || "<p>Still rendering. Refresh in a moment.</p>").html_safe %></article>

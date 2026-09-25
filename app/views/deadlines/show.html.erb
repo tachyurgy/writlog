@@ -1,0 +1,26 @@
+<% content_for :title, "Deadline calculator" %>
+<h1>Answer deadline calculator</h1>
+<p class="lede">The same <code>DeadlineRules</code> module the workflow uses when it records service. Every result shows the raw date, the rule, and each day it was rolled past.</p>
+<%= form_with url: deadline_calculator_path, method: :get, class: "card form" do %>
+  <div class="row2">
+    <label>Service method <%= select_tag :method, options_for_select(DeadlineRules::SERVICE_METHODS.invert, @method) %></label>
+    <label>Served on <%= date_field_tag :served_on, @served_on %></label>
+  </div>
+  <label>Proof of service filed (308(2) and 308(4) only) <%= date_field_tag :proof_filed_on, @proof_filed_on %></label>
+  <%= submit_tag "Compute", class: "btn", name: nil %>
+<% end %>
+
+<% [@answer, @default].each do |d| %>
+  <div class="card result">
+    <p class="eyebrow"><%= d.label %></p>
+    <p class="big mono"><%= d.due_on.strftime("%A, %B %-d, %Y") %></p>
+    <p><%= d.rule %>. Raw date <span class="mono"><%= d.raw_on.iso8601 %></span><%= d.rolled? ? ", rolled forward under GCL 25-a:" : ", a business day, so no roll." %></p>
+    <% if d.rolled? %><ul><% d.rolled_reasons.each do |r| %><li class="mono"><%= r %></li><% end %></ul><% end %>
+  </div>
+<% end %>
+
+<h2>New York public holidays, <%= @year %></h2>
+<p class="hint">General Construction Law 24; a holiday falling on a Sunday is observed the Monday after. <%= link_to "#{@year - 1}", deadline_calculator_path(request.query_parameters.merge(year: @year - 1)) %> · <%= link_to "#{@year + 1}", deadline_calculator_path(request.query_parameters.merge(year: @year + 1)) %></p>
+<div class="table-wrap"><table class="grid"><tbody>
+<% @holidays.each do |date, name| %><tr><td class="mono"><%= date.strftime("%a %Y-%m-%d") %></td><td><%= name %></td></tr><% end %>
+</tbody></table></div>

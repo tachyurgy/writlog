@@ -1,0 +1,96 @@
+<% content_for :title, @matter.reference %>
+<div class="caption">
+  <p class="eyebrow mono"><%= @matter.reference %><% if @matter.index_number %> · Index No. <%= @matter.index_number %><% end %> · <%= @matter.county %> County</p>
+  <h1><%= @matter.client_name %> <span class="v">v.</span> <%= @matter.debtor_name %><% if @matter.guarantor_name %> <span class="v">and</span> <%= @matter.guarantor_name %><% end %></h1>
+  <div class="caption-meta">
+    <%= state_badge(@matter.state) %>
+    <span>Balance <strong class="mono"><%= money(@matter.balance_cents) %></strong></span>
+    <span>Paid <span class="mono"><%= money(@matter.paid_cents) %></span></span>
+    <% if @matter.next_deadline_on %>
+      <span class="deadline-pill">Next: <%= @matter.next_deadline_label %> · <strong><%= day(@matter.next_deadline_on) %></strong> (<%= days_until(@matter.next_deadline_on) %>)</span>
+    <% end %>
+    <span class="integrity <%= @consistent ? 'ok' : 'bad' %>" title="Workflow.replay(events) compared with the stored projection on every page load">
+      <%= @consistent ? "✓ projection = replay of #{@events.size} events" : "✗ projection drifted from the log" %>
+    </span>
+  </div>
+</div>
+
+<div class="cols">
+  <section class="col-main">
+    <h2>Event log</h2>
+    <p class="hint">Append-only (a Postgres trigger rejects UPDATE and DELETE). The state column on the matter is only ever written by folding these events.</p>
+    <ol class="timeline">
+      <% @events.each do |e| %>
+        <li id="event-<%= e.seq %>" class="ev kind-<%= e.kind %> <%= 'audit' if Workflow::AUDIT_KINDS.include?(e.kind) %>">
+          <span class="seq mono">#<%= e.seq %></span>
+          <div>
+            <strong><%= e.label %></strong> <small class="mono"><%= e.effective_on.iso8601 %></small>
+            <% if e.from_state != e.to_state %><small class="trans"><%= e.from_state.humanize %> → <%= e.to_state.humanize %></small><% end %>
+            <div class="payload"><%= payload_summary(e) %></div>
+          </div>
+          <small class="actor"><%= e.actor %></small>
+        </li>
+      <% end %>
+    </ol>
+
+    <% if @legal_kinds.any? %>
+      <%= form_with url: matter_events_path(@matter), class: "card form event-form", data: { event_form: true } do %>
+        <h3>Record the next event</h3>
+        <p class="hint">Only transitions legal from <strong><%= @matter.state.humanize.downcase %></strong> are offered. The server re-validates anyway.</p>
+        <div class="row2">
+          <label>Event <%= select_tag :kind, options_for_select(@legal_kinds.map { |k| [k.humanize, k] }), data: { kind_select: true } %></label>
+          <label>Effective date <%= date_field_tag :effective_on, Date.current %></label>
+        </div>
+        <label data-for="demand_sent">Cure period (days) <%= number_field_tag :cure_days, 10, min: 1, max: 90 %></label>
+        <label data-for="suit_filed">Index number <%= text_field_tag :index_number, "", placeholder: "612345/2026" %></label>
+        <label data-for="served">Service method <%= select_tag :method, options_for_select(DeadlineRules::SERVICE_METHODS.invert) %></label>
+        <label data-for="served">Proof of service filed (308(2)/(4) only) <%= date_field_tag :proof_filed_on %></label>
+        <label data-for="judgment_entered payment_received settlement_reached">Amount (USD) <%= text_field_tag :amount, "", inputmode: "decimal" %></label>
+        <label data-for="restraining_notice_served information_subpoena_served">Served on (bank or garnishee) <%= text_field_tag :recipient, "", placeholder: "Example Community Bank" %></label>
+        <label>Note <%= text_field_tag :note, "", placeholder: "optional" %></label>
+        <%= submit_tag "Append event", class: "btn" %>
+      <% end %>
+    <% else %>
+      <p class="hint">This matter is <%= @matter.state %>: the log is closed to new workflow events.</p>
+    <% end %>
+  </section>
+
+  <aside class="col-side">
+    <h2>Documents</h2>
+    <p class="hint">A React island. Generation runs as an ActiveJob; the same matter, template version and merge inputs always resolve to one document.</p>
+    <div id="document-composer"
+         data-props="<%= { matter: @matter.reference,
+                            templates: DocumentTemplate.latest.map { |t| { id: t.id, key: t.key, version: t.version, name: t.name, description: t.description } },
+                            endpoints: { preview: preview_matter_documents_path(@matter), create: matter_documents_path(@matter), list: matter_documents_path(@matter), show: "/documents/" } }.to_json %>">
+      <noscript>The document composer needs JavaScript.</noscript>
+    </div>
+
+    <h2 id="comms">Communications</h2>
+    <ul class="comms">
+      <% @communications.each do |c| %>
+        <li>
+          <span class="badge chan"><%= c.channel.humanize %></span> <small><%= c.direction %> · <%= c.counterparty %> · <%= c.occurred_at.strftime("%b %-d, %Y %-l:%M%P") %></small>
+          <div><strong><%= c.subject %></strong></div>
+          <% if c.body.present? %><div class="comm-body"><%= c.body %></div><% end %>
+          <% if c.generated_document %><small>Enclosure: <%= link_to "#{c.generated_document.template_key} v#{c.generated_document.version}", document_path(c.generated_document) %></small><% end %>
+        </li>
+      <% end %>
+      <% if @communications.empty? %><li class="hint">Nothing logged yet.</li><% end %>
+    </ul>
+    <%= form_with model: Communication.new, url: matter_communications_path(@matter), class: "card form" do |f| %>
+      <h3>Log a communication</h3>
+      <div class="row2">
+        <label>Channel <%= f.select :channel, Communication::CHANNELS.map { |c| [c.humanize, c] } %></label>
+        <label>Direction <%= f.select :direction, Communication::DIRECTIONS %></label>
+      </div>
+      <label>Counterparty <%= f.text_field :counterparty, required: true, placeholder: "Debtor's counsel" %></label>
+      <label>Subject <%= f.text_field :subject, required: true %></label>
+      <label>Notes <%= f.text_area :body, rows: 2 %></label>
+      <% docs = @matter.generated_documents.select(&:ready?) %>
+      <% if docs.any? %>
+        <label>Enclosure <%= f.select :generated_document_id, docs.map { |d| ["#{d.template_key} v#{d.version}", d.id] }, include_blank: "none" %></label>
+      <% end %>
+      <%= f.submit "Log it", class: "btn" %>
+    <% end %>
+  </aside>
+</div>

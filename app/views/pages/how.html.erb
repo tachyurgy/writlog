@@ -1,0 +1,21 @@
+<% content_for :title, "How it works" %>
+<article class="prose">
+<h1>How Writlog works</h1>
+
+<h2>1. The event log is the source of truth</h2>
+<p>Each matter has an append-only <code>matter_events</code> table: <code>(matter_id, seq)</code> is unique, and a Postgres trigger raises on any <code>UPDATE</code> or <code>DELETE</code>. The columns on <code>matters</code> (state, deadlines, balance) are a projection. They are written in exactly one place, <code>Workflow.append!</code>, which row-locks the matter, folds the new event into the current projection with a pure function, inserts the event with <code>seq = count + 1</code>, and writes the new projection, all in one transaction.</p>
+<p>Because the fold is pure, the projection can be rebuilt from the log at any time. Every matter page does it on load and shows the result next to the state badge. The test suite checks the same property across randomly generated legal event sequences.</p>
+
+<h2>2. The state machine</h2>
+<p>Intake → demand sent → suit filed → served → answered or in default → judgment entered → enforcement (restraining notice, information subpoena, execution) → settled, satisfied or closed. Illegal transitions are rejected before anything is written: a default cannot be noted before the answer deadline has passed, events cannot be back-dated before the previous event, and a satisfied matter accepts no more workflow events.</p>
+
+<h2>3. Deadlines</h2>
+<p>Service sets the answer deadline under CPLR 320(a): 20 days after personal delivery, otherwise 30 days after service is complete (10 days after proof is filed for 308(2) and 308(4)). A default starts the one-year clock of CPLR 3215(c). A restraining notice expires one year after service (CPLR 5222(b)). Every date is rolled forward past Saturdays, Sundays and New York public holidays per General Construction Law 25-a, and the reasons for each roll are kept. See the <%= link_to "calculator", deadline_calculator_path %>.</p>
+
+<h2>4. Documents, exactly once</h2>
+<p>Templates are versioned rows with <code>{{merge_fields}}</code>. Asking for a document resolves the fields against the matter and hashes <code>(template id, template version, sorted values)</code>. The row is keyed by a unique index on <code>(matter_id, document_template_id, inputs_digest)</code>, so the same request made twice, or fifty times in parallel, yields one row and one enqueued job. If the balance changes, the digest changes and a new version is produced; history is kept.</p>
+<p><code>GenerateDocumentJob</code> takes a row lock, returns early if the document is already ready, renders HTML and a PDF (Prawn, pure Ruby), stores the PDF with Active Storage, and appends a <code>document_generated</code> event, which a unique partial index limits to one per document. The job uses only the ActiveJob API. Here it runs on Solid Queue inside Puma; changing one adapter line moves it to Sidekiq.</p>
+
+<h2>5. Communications</h2>
+<p>Letters, emails, calls and filings are logged against the matter, optionally with a generated document as the enclosure, and each one also lands on the event log in the same transaction.</p>
+</article>

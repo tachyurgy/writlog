@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title><%= content_for(:title) ? "#{yield(:title)} · Writlog" : "Writlog · collections matters on an append-only log" %></title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="description" content="Writlog: a commercial collections case engine. Matter workflow driven by an append-only event log, New York deadline rules with holiday rolling, and idempotent background document generation.">
+    <%= csrf_meta_tags %>
+    <%= csp_meta_tag %>
+    <link rel="icon" href="/icon.svg" type="image/svg+xml">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <%= stylesheet_link_tag :app %>
+    <%= javascript_importmap_tags %>
+    <script>window.LB_CFG={endpoint:"https://levelbrook.com/e"}</script>
+    <script src="https://levelbrook.com/lb.js" defer></script>
+  </head>
+  <body>
+    <header class="masthead">
+      <div class="wrap masthead-row">
+        <a href="/" class="brand"><span class="brand-mark">§</span> Writlog</a>
+        <nav>
+          <%= link_to "Matters", root_path %>
+          <%= link_to "Deadline calculator", deadline_calculator_path %>
+          <%= link_to "How it works", how_it_works_path %>
+          <a href="https://github.com/tachyurgy/writlog">Source</a>
+        </nav>
+      </div>
+    </header>
+    <main class="wrap">
+      <% if notice %><p class="flash ok"><%= notice %></p><% end %>
+      <% if alert %><p class="flash bad"><%= alert %></p><% end %>
+      <%= yield %>
+    </main>
+    <footer class="wrap foot">
+      Writlog is a demonstration system. All matters, parties and amounts are fictional. Deadline rules are illustrative and are not legal advice.
+    </footer>
+  </body>
+</html>

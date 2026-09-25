@@ -1,0 +1,12 @@
+<% content_for :title, "New matter" %>
+<h1>Open a matter</h1>
+<p class="lede">Opening a matter writes the row and its first event (<code>matter_opened</code>) in one transaction. Use fictional names.</p>
+<%= form_with model: @matter, url: matters_path, class: "card form" do |f| %>
+  <label>Client (creditor or funder) <%= f.text_field :client_name, required: true, placeholder: "Harbor Gate Capital LLC" %></label>
+  <label>Debtor (business) <%= f.text_field :debtor_name, required: true, placeholder: "Blue Heron Bakery Corp." %></label>
+  <label>Debtor address <%= f.text_field :debtor_address, placeholder: "18 Example Ave, Hempstead, NY 11550" %></label>
+  <label>Guarantor <%= f.text_field :guarantor_name, placeholder: "optional" %></label>
+  <label>County <%= f.select :county, %w[Nassau Suffolk Kings Queens New\ York Bronx Richmond Westchester] %></label>
+  <label>Principal owed (USD) <%= text_field_tag "matter[principal]", "", required: true, inputmode: "decimal", placeholder: "48,250.00" %></label>
+  <%= f.submit "Open matter", class: "btn" %>
+<% end %>
